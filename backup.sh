@@ -1,5 +1,7 @@
 #!/bin/bash
 
+valid_compressions=("zstd" "gzip" "lzo")
+
 log_info() {
   echo "[INFO] $1"
 }
@@ -13,11 +15,12 @@ log_exec() {
 }
 
 usage() {
-  echo "Usage: $0 --device <usb-device> [--id <container-id>] [--storage <storage-id>] [--drymode]"
+  echo "Usage: $0 --device <usb-device> [--id <container-id>] [--storage <storage-id>] [--compression <compression-algorithm>] [--drymode]"
   exit 1
 }
 
 dry_mode=false
+compression_algorithm="zstd"
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -35,6 +38,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --storage)
       storage_id="$2"
+      shift
+      shift
+      ;;
+    --compression)
+      compression_algorithm="$2"
       shift
       shift
       ;;
@@ -76,6 +84,13 @@ if [ "$dry_mode" = true ]; then
   log_info "Running in dry mode. No actual operations will be performed."
 fi
 
+# Check if the provided compression algorithm is valid
+if ! [[ " ${valid_compressions[*]} " =~ " ${compression_algorithm} " ]]; then
+  log_error "Invalid compression algorithm specified: $compression_algorithm"
+  log_error "Valid compression options are: ${valid_compressions[*]}"
+  exit 1
+fi
+
 if [ "$dry_mode" = true ]; then
   log_info "Mounting USB device $usb_device to $usb_mount_point (Dry mode, not executed)."
   log_exec "mount $usb_device $usb_mount_point (Dry mode, not executed)."
@@ -97,12 +112,12 @@ fi
 
 # Run the backup for the specified container ID to the USB drive
 if [ "$dry_mode" = true ]; then
-  log_info "Running backup for container ID $container_id to $storage_id (Dry mode, not executed)."
-  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress zstd (Dry mode, not executed)."
+  log_info "Running backup for container ID $container_id to $storage_id with compression: $compression_algorithm (Dry mode, not executed)."
+  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress $compression_algorithm (Dry mode, not executed)."
 else
-  log_info "Running backup for container ID $container_id to $storage_id."
-  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress zstd"
-  vzdump "$container_id" --mode snapshot --storage "$storage_id" --compress zstd
+  log_info "Running backup for container ID $container_id to $storage_id with compression: $compression_algorithm."
+  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress $compression_algorithm"
+  vzdump "$container_id" --mode snapshot --storage "$storage_id" --compress "$compression_algorithm"
 fi
 
 # Remove the storage from Proxmox (optional, to avoid cluttering the GUI)
