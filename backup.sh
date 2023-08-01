@@ -98,11 +98,11 @@ fi
 # Run the backup for the specified container ID to the USB drive
 if [ "$dry_mode" = true ]; then
   log_info "Running backup for container ID $container_id to $storage_id (Dry mode, not executed)."
-  log_exec "vzdump $container_id --mode snapshot --storage $storage_id (Dry mode, not executed)."
+  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress zstd (Dry mode, not executed)."
 else
   log_info "Running backup for container ID $container_id to $storage_id."
-  log_exec "vzdump $container_id --mode snapshot --storage $storage_id"
-  vzdump "$container_id" --mode snapshot --storage "$storage_id"
+  log_exec "vzdump $container_id --mode snapshot --storage $storage_id --compress zstd"
+  vzdump "$container_id" --mode snapshot --storage "$storage_id" --compress zstd
 fi
 
 # Remove the storage from Proxmox (optional, to avoid cluttering the GUI)
