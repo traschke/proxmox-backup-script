@@ -28,6 +28,8 @@
 #   feel free to contact the script author at [your-email@example.com].        #
 ################################################################################
 
+ntfy_topic="change-your-topic-here"
+
 valid_compressions=("zstd" "gzip" "lzo")
 
 log_info() {
@@ -45,6 +47,25 @@ log_exec() {
 usage() {
   echo "Usage: $0 --device <usb-device> [--id <container-id>] [--storage <storage-id>] [--compression <compression-algorithm>] [--drymode]"
   exit 1
+}
+
+send_ntfy() {
+  local container_id="$1"
+  local usb_device="$2"
+  local topic="$3"
+  curl -d "Backup of $container_id to $usb_device complete!" -H "Title: Promox backup successful" https://ntfy.sh/$topic
+}
+
+log_storage_info() {
+  df_output=$(df -h "$usb_mount_point" | tail -n 1)
+  total_space=$(echo "$df_output" | awk '{print $2}')
+  used_space=$(echo "$df_output" | awk '{print $3}')
+  free_space=$(echo "$df_output" | awk '{print $4}')
+  percentage_used=$(echo "$df_output" | awk '{print $5}')
+
+  log_info "Storage information for $usb_mount_point:"
+  log_info "  $(printf "%-22s %s used of %s (%s)" "$usb_mount_point:" "$used_space" "$total_space" "$percentage_used")"
+  log_info "  Free space: $free_space"
 }
 
 dry_mode=false
@@ -128,6 +149,11 @@ else
   mount "$usb_device" "$usb_mount_point"
 fi
 
+# Log storage info before backup
+if [ "$dry_mode" = false ]; then
+  log_storage_info
+fi
+
 # Add the mount point as a storage in Proxmox
 if [ "$dry_mode" = true ]; then
   log_info "Adding storage $storage_id from $usb_mount_point to Proxmox (Dry mode, not executed)."
@@ -158,6 +184,11 @@ else
   pvesm remove "$storage_id"
 fi
 
+# Log storage info after backup
+if [ "$dry_mode" = false ]; then
+  log_storage_info
+fi
+
 # Unmount the USB drive
 if [ "$dry_mode" = true ]; then
   log_info "Unmounting USB device $usb_device from $usb_mount_point (Dry mode, not executed)."
@@ -166,6 +197,12 @@ else
   log_info "Unmounting USB device $usb_device from $usb_mount_point."
   log_exec "umount $usb_mount_point"
   umount "$usb_mount_point"
+fi
+
+# Sending ntfy.sh notification
+if [ "$dry_mode" = false ]; then
+  log_info "Sending ntfy.sh notification to topic '$ntfy_topic'."
+  send_ntfy "$container_id" "$usb_device" "$ntfy_topic"
 fi
 
 if [ "$dry_mode" = true ]; then
